@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digital Signal Timing Diagram Generator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-dark: #0f1419;
+            --bg-light: #1a1f2e;
+            --text-primary: #e8eef7;
+            --text-secondary: #a0aac7;
+            --accent: #00d4ff;
+            --grid: #2a3142;
+        }
+
+        body {
+            font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
+            background: linear-gradient(135deg, var(--bg-dark) 0%, var(--bg-light) 100%);
+            color: var(--text-primary);
+            padding: 2rem;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            margin-bottom: 2rem;
+        }
+
+        .header h1 {
+            font-size: 2rem;
+            font-weight: 600;
+            margin-bottom: 0.3rem;
+            color: var(--accent);
+        }
+
+        .header p {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .controls {
+            background: var(--bg-light);
+            border: 1px solid var(--grid);
+            border-radius: 6px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+        }
+
+        .control-group label {
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .control-group input,
+        .control-group select {
+            padding: 0.6rem;
+            background: var(--bg-dark);
+            border: 1px solid var(--grid);
+            border-radius: 4px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.9rem;
+        }
+
+        .control-group input:focus,
+        .control-group select:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .button-group {
+            grid-column: 1 / -1;
+            display: flex;
+            gap: 1rem;
+        }
+
+        button {
+            padding: 0.75rem 1.5rem;
+            font-size: 0.85rem;
+            font-weight: 600;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            flex: 1;
+        }
+
+        .btn-generate {
+            background: linear-gradient(135deg, var(--accent), #00f0ff);
+            color: var(--bg-dark);
+        }
+
+        .btn-generate:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(0, 212, 255, 0.2);
+        }
+
+        .btn-clear {
+            background: var(--bg-dark);
+            color: var(--text-secondary);
+            border: 1px solid var(--grid);
+        }
+
+        .btn-clear:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .diagram-container {
+            background: var(--bg-light);
+            border: 1px solid var(--grid);
+            border-radius: 6px;
+            padding: 1.5rem;
+            overflow-x: auto;
+            min-height: 350px;
+        }
+
+        .diagram-title {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--accent);
+            margin-bottom: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        svg {
+            display: block;
+            margin: 0 auto;
+        }
+
+        .error {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #fca5a5;
+            padding: 0.8rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+        }
+
+        .success-msg {
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            color: #86efac;
+            padding: 0.8rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+        }
+
+        .info {
+            background: var(--bg-dark);
+            border: 1px solid var(--grid);
+            border-radius: 4px;
+            padding: 1rem;
+            margin-top: 1rem;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        @media (max-width: 768px) {
+            .controls {
+                grid-template-columns: 1fr;
+            }
+
+            .header h1 {
+                font-size: 1.5rem;
+            }
+
+            .button-group {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Timing Diagram Generator</h1>
+            <p>Digital Signal Encoding Visualization</p>
+        </div>
+
+        <div class="controls">
+            <div class="control-group">
+                <label for="binary-input">Binary Sequence</label>
+                <input 
+                    type="text" 
+                    id="binary-input" 
+                    placeholder="e.g., 10110000100000000"
+                    value="10110000100000000"
+                >
+            </div>
+
+            <div class="control-group">
+                <label for="mode-select">Encoding Mode</label>
+                <select id="mode-select">
+                    <option value="unipolar-nrz">Unipolar NRZ</option>
+                    <option value="polar-nrz-l">Polar NRZ-L</option>
+                    <option value="polar-nrz-i">Polar NRZ-I</option>
+                    <option value="bipolar-ami">Bipolar AMI</option>
+                    <option value="pseudoternary">Bipolar Pseudoternary</option>
+                    <option value="bipolar-nrz">Bipolar NRZ</option>
+                    <option value="2b1q">2B1Q</option>
+                    <option value="manchester">Polar Manchester</option>
+                    <option value="diff-manchester">Polar Differential Manchester</option>
+                    <option value="polar-rz">Polar RZ</option>
+                    <option value="mlt3">MLT-3</option>
+                    <option value="hdb3">HDB3</option>
+                    <option value="b8zs">B8ZS</option>
+                </select>
+            </div>
+
+            <div class="button-group">
+                <button class="btn-generate" onclick="generateDiagram()">Generate Diagram</button>
+                <button class="btn-clear" onclick="clearAll()">Clear</button>
+            </div>
+        </div>
+
+        <div id="message-container"></div>
+
+        <div class="diagram-container">
+            <div class="diagram-title" id="diagram-label"></div>
+            <div id="diagram-output"></div>
+        </div>
+
+        <div class="info">
+            <strong>Color Legend:</strong><br>
+            <span style="color: #ffff00;">■ Yellow</span> = Bit Labels (Above Diagram)<br>
+            <span style="color: #00d4ff;">■ Cyan</span> = Zero Reference Line<br>
+            <span style="color: #ff3333;">■ Red</span> = Signal Waveform
+        </div>
+    </div>
+
+    <script>
+        // Encoding functions
+        const encodings = {
+            'unipolar-nrz': function(bits) {
+                const bitsStr = typeof bits === 'string' ? bits : bits.join('');
+                return bitsStr.split('').map(b => b === '0' ? 0 : 1);
+            },
+
+            'polar-nrz-l': function(bits) {
+                const bitsStr = typeof bits === 'string' ? bits : bits.join('');
+                return bitsStr.split('').map(b => b === '0' ? -1 : 1);
+            },
+
+            'polar-nrz-i': function(bits) {
+                const bitsStr = typeof bits === 'string' ? bits : bits.join('');
+                let level = 1;
+                return bitsStr.split('').map(b => {
+                    if (b === '1') level = -level;
+                    return level;
+                });
+            },
+
+            'bipolar-ami': function(bits) {
+                const bitsStr = typeof bits === 'string' ? bits : bits.join('');
+                let nextLevel = 1;
+                return bitsStr.split('').map(b => {
+                    if (b === '0') return 0;
+                    const result = nextLevel;
+                    nextLevel = -nextLevel;
+                    return result;
+                });
+            },
+
+            'pseudoternary': function(bits) {
+                const bitsStr = typeof bits === 'string' ? bits : bits.join('');
+                let nextLevel = 1;
+                return bitsStr.split('').map(b => {
+                    if (b === '1') return 0;
+                    const result = nextLevel;
+                    nextLevel = -nextLevel;
+                    return result;
+                });
+            },
+
+            'bipolar-nrz': function(bits) {
+                const bitsStr = typeof bits === 'string' ? bits : bits.join('');
+                return bitsStr.split('').map(b => b === '0' ? -1 : 1);
+            },
+
+            '2b1q': function(bits) {
+                const bitsStr = typeof bits === 'string' ? bits : bits.join('');
+                const pairs = [];
+                for (let i = 0; i < bitsStr.length; i += 2) {
+                    const pair = bitsStr.substr(i, 2);
+                    if (pair.length === 2) {
+                        if (pair === '00') pairs.push(-3);
+                        else if (pair === '01') pairs.push(-1);
+                        else if (pair === '10') pairs.push(1);
+                        else pairs.push(3);
+                    }
+                }
+                return pairs;
+            },
+
+            'manchester': function(bits) {
+                const bitsStr = typeof bits === 'string' ? bits : bits.join('');
+                const result = [];
+                bitsStr.split('').forEach(b => {
+                    if (b === '0') {
+                        result.push(1, -1);
+                    } else {
+                        result.push(-1, 1);
+                    }
+                });
+                return result;
+            },
+
+            'diff-manchester': function(bits) {
+                const bitsStr = typeof bits === 'string' ? bits : bits.join('');
+                const result = [];
+                let level = 1;
+                bitsStr.split('').forEach(b => {
+                    if (b === '1') {
+                        result.push(level, -level);
+                    } else {
+                        result.push(-level, level);
+                    }
+                    level = -level;
+                });
+                return result;
+            },
+
+            'polar-rz': function(bits) {
+                const bitsStr = typeof bits === 'string' ? bits : bits.join('');
+                const result = [];
+                bitsStr.split('').forEach(b => {
+                    const level = b === '0' ? -1 : 1;
+                    result.push(level, 0);
+                });
+                return result;
+            },
+
+            'mlt3': function(bits) {
+                const bitsStr = typeof bits === 'string' ? bits : bits.join('');
+                let level = -1;
+                const result = [];
+                let zeroCount = 0;
+                bitsStr.split('').forEach((b) => {
+                    if (b === '1') {
+                        level = level === -1 ? 0 : (level === 0 ? 1 : -1);
+                        zeroCount = 0;
+                    } else {
+                        zeroCount++;
+                        if (zeroCount > 3) {
+                            level = level === -1 ? 0 : (level === 0 ? 1 : -1);
+                            zeroCount = 0;
+                        }
+                    }
+                    result.push(level);
+                });
+                return result;
+            },
+
+            'hdb3': function(bits) {
+                const bitsStr = typeof bits === 'string' ? bits : bits.join('');
+                const result = [];
+                let level = 1;
+                let zeroCount = 0;
+                bitsStr.split('').forEach(b => {
+                    if (b === '1') {
+                        result.push(level);
+                        level = -level;
+                        zeroCount = 0;
+                    } else {
+                        if (zeroCount === 3) {
+                            result.push(level);
+                            level = -level;
+                            zeroCount = 0;
+                        } else {
+                            result.push(0);
+                            zeroCount++;
+                        }
+                    }
+                });
+                return result;
+            },
+
+            'b8zs': function(bits) {
+                const bitsStr = typeof bits === 'string' ? bits : bits.join('');
+                const result = [];
+                let level = 1;
+                let zeroCount = 0;
+                bitsStr.split('').forEach(b => {
+                    if (b === '1') {
+                        result.push(level);
+                        level = -level;
+                        zeroCount = 0;
+                    } else {
+                        if (zeroCount === 7) {
+                            result.push(0, 0, 0, 0, 0, 0, level, -level);
+                            level = -level;
+                            zeroCount = 0;
+                        } else {
+                            result.push(0);
+                            zeroCount++;
+                        }
+                    }
+                });
+                return result;
+            }
+        };
+
+        const labels = {
+            'unipolar-nrz': 'Unipolar NRZ',
+            'polar-nrz-l': 'Polar NRZ-L',
+            'polar-nrz-i': 'Polar NRZ-I',
+            'bipolar-ami': 'Bipolar AMI',
+            'pseudoternary': 'Bipolar Pseudoternary',
+            'bipolar-nrz': 'Bipolar NRZ',
+            '2b1q': '2B1Q',
+            'manchester': 'Polar Manchester',
+            'diff-manchester': 'Polar Differential Manchester',
+            'polar-rz': 'Polar RZ',
+            'mlt3': 'MLT-3',
+            'hdb3': 'HDB3',
+            'b8zs': 'B8ZS'
+        };
+
+        function validateInput(binary) {
+            if (!binary || binary.trim() === '') {
+                showError('Please enter a binary sequence');
+                return false;
+            }
+            if (!/^[01]+$/.test(binary.trim())) {
+                showError('Binary sequence must contain only 0s and 1s');
+                return false;
+            }
+            if (binary.length > 50) {
+                showError('Binary sequence is too long (max 50 bits)');
+                return false;
+            }
+            return true;
+        }
+
+        function drawWaveform(bits, levels, mode) {
+            const svgWidth = 50 + bits.length * 60;
+            const svgHeight = 400;
+            const padding = 60;
+            const waveHeight = svgHeight - 2 * padding;
+            const bitWidth = 60;
+
+            const minLevel = Math.min(...levels, -3);
+            const maxLevel = Math.max(...levels, 3);
+            const levelRange = maxLevel - minLevel || 2;
+
+            let svg = `<svg width="${svgWidth}" height="${svgHeight}" xmlns="http://www.w3.org/2000/svg" style="background: rgba(15, 20, 25, 0.5); border-radius: 4px;">`;
+
+            // Grid lines
+            svg += `<g stroke="#2a3142" stroke-width="0.5" stroke-dasharray="5,5">`;
+            for (let i = 0; i <= bits.length; i++) {
+                const x = padding + i * bitWidth;
+                svg += `<line x1="${x}" y1="${padding}" x2="${x}" y2="${svgHeight - padding}" />`;
+            }
+            for (let i = -3; i <= 3; i++) {
+                const y = padding + (maxLevel - i) * (waveHeight / levelRange);
+                svg += `<line x1="${padding}" y1="${y}" x2="${svgWidth - padding}" y2="${y}" stroke-dasharray="2,3" opacity="0.3"/>`;
+            }
+            svg += `</g>`;
+
+            // Zero reference line - BLUE
+            const zeroY = padding + (maxLevel - 0) * (waveHeight / levelRange);
+            svg += `<line x1="${padding}" y1="${zeroY}" x2="${svgWidth - padding}" y2="${zeroY}" stroke="#00d4ff" stroke-width="2.5" opacity="0.8" stroke-dasharray="8,4"/>`;
+
+            // Y-axis labels
+            svg += `<g font-size="12" fill="#a0aac7" text-anchor="end">`;
+            for (let i = -3; i <= 3; i++) {
+                const y = padding + (maxLevel - i) * (waveHeight / levelRange);
+                svg += `<text x="${padding - 10}" y="${y + 4}">${i}</text>`;
+            }
+            svg += `</g>`;
+
+            // Bit labels ABOVE - YELLOW
+            svg += `<g font-size="13" fill="#ffff00" text-anchor="middle" font-weight="700">`;
+            for (let i = 0; i < bits.length; i++) {
+                const x = padding + (i + 0.5) * bitWidth;
+                svg += `<text x="${x}" y="${padding - 20}">${bits[i]}</text>`;
+            }
+            svg += `</g>`;
+
+            // Time axis label
+            svg += `<text x="${svgWidth - padding}" y="${svgHeight - 15}" font-size="12" fill="#a0aac7" text-anchor="end">time →</text>`;
+            svg += `<text x="${padding - 35}" y="${20}" font-size="12" fill="#a0aac7">Amplitude</text>`;
+
+            // Draw square wave - RED
+            const color = '#ff3333';
+            let pathData = '';
+
+            function getYCoord(level) {
+                return padding + (maxLevel - level) * (waveHeight / levelRange);
+            }
+
+            if (levels.length > 0) {
+                pathData += `${padding},${getYCoord(levels[0])} `;
+
+                for (let i = 0; i < levels.length; i++) {
+                    const level = levels[i];
+                    const nextLevel = i < levels.length - 1 ? levels[i + 1] : level;
+                    
+                    let x1, x2;
+                    if (mode === '2b1q') {
+                        x1 = padding + i * bitWidth;
+                        x2 = padding + (i + 1) * bitWidth;
+                    } else if (mode === 'manchester' || mode === 'diff-manchester') {
+                        x1 = padding + Math.floor(i / 2) * bitWidth + (i % 2) * bitWidth / 2;
+                        x2 = padding + Math.floor((i + 1) / 2) * bitWidth + ((i + 1) % 2) * bitWidth / 2;
+                    } else if (mode === 'polar-rz') {
+                        x1 = padding + Math.floor(i / 2) * bitWidth + (i % 2) * bitWidth / 2;
+                        x2 = padding + Math.floor((i + 1) / 2) * bitWidth + ((i + 1) % 2) * bitWidth / 2;
+                    } else {
+                        x1 = padding + i * bitWidth;
+                        x2 = padding + (i + 1) * bitWidth;
+                    }
+
+                    const y1 = getYCoord(level);
+                    const y2 = getYCoord(nextLevel);
+
+                    pathData += `${x2},${y1} `;
+                    
+                    if (level !== nextLevel) {
+                        pathData += `${x2},${y2} `;
+                    }
+                }
+
+                const lastX = padding + (levels.length * bitWidth);
+                const lastY = getYCoord(levels[levels.length - 1]);
+                pathData += `${lastX},${lastY}`;
+            }
+
+            svg += `<polyline points="${pathData}" fill="none" stroke="${color}" stroke-width="3" stroke-linecap="round" stroke-linejoin="miter" />`;
+
+            svg += `</svg>`;
+            return svg;
+        }
+
+        function generateDiagram() {
+            const binary = document.getElementById('binary-input').value.trim();
+            const mode = document.getElementById('mode-select').value;
+
+            if (!validateInput(binary)) return;
+
+            try {
+                const encodingFunc = encodings[mode];
+                if (!encodingFunc) {
+                    showError('Unknown encoding mode');
+                    return;
+                }
+
+                const levels = encodingFunc(binary);
+                const svg = drawWaveform(binary, levels, mode);
+
+                document.getElementById('diagram-label').textContent = labels[mode];
+                document.getElementById('diagram-output').innerHTML = svg;
+                showSuccess(`✓ Generated diagram for ${binary.length} bits using ${labels[mode]}`);
+            } catch (err) {
+                showError(`Error: ${err.message}`);
+            }
+        }
+
+        function showError(msg) {
+            document.getElementById('message-container').innerHTML = `<div class="error">⚠ ${msg}</div>`;
+        }
+
+        function showSuccess(msg) {
+            document.getElementById('message-container').innerHTML = `<div class="success-msg">${msg}</div>`;
+        }
+
+        function clearAll() {
+            document.getElementById('binary-input').value = '';
+            document.getElementById('diagram-output').innerHTML = '';
+            document.getElementById('diagram-label').textContent = '';
+            document.getElementById('message-container').innerHTML = '';
+        }
+
+        // Generate on Enter key
+        document.getElementById('binary-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') generateDiagram();
+        });
+
+        // Generate diagram on mode change
+        document.getElementById('mode-select').addEventListener('change', () => {
+            const binary = document.getElementById('binary-input').value.trim();
+            if (binary) generateDiagram();
+        });
+
+        // Auto-generate on page load
+        window.addEventListener('load', () => {
+            generateDiagram();
+        });
+    </script>
+</body>
+</html>
